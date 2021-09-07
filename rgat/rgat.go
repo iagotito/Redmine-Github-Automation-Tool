@@ -77,6 +77,7 @@ func main() {
 
     redmineCmd := flag.NewFlagSet("redmine", flag.ExitOnError)
     redmineHelp := redmineCmd.Bool("help", false, "Help")
+    redmineReadYaml := redmineCmd.String("read-yaml", "", "Read YAML file")
 
     switch os.Args[1] {
 
@@ -98,9 +99,11 @@ func main() {
             fmt.Println(RedmineHelpText)
             return
         }
-        sprint, err := readSprintYaml("sprint1.yaml")
-        check(err)
-        fmt.Println(sprint)
+        if *redmineReadYaml != "" {
+            sprint, err := readSprintYaml(*redmineReadYaml)
+            check(err)
+            fmt.Println(sprint)
+        }
     default:
         fmt.Println(HelpText)
     }
