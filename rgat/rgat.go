@@ -14,7 +14,8 @@ const HelpText = `usage: rgat <command> [<args>]
 
 Avaliable commands:
 
-  config        Crate a configuration file
+  config        Create a configuration file
+  redmine       Redmine actions
 
 'rgat help' list available subcommands`
 
