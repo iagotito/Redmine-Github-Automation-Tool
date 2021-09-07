@@ -1,0 +1,14 @@
+---
+name: 1
+tasks:
+  - name: First task
+    description: First task description
+    subtasks:
+      - name: subtask1
+        time: 4
+      - name: subtask2
+        time: 1
+
+  - name: Second task
+    description: Second task description
+    time: 4.5

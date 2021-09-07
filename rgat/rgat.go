@@ -3,8 +3,11 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
+
+	"gopkg.in/yaml.v3"
 )
 
 const HelpText = `usage: rgat <command> [<args>]
@@ -69,6 +72,10 @@ func main() {
             fmt.Println(ConfigHelpText)
         }
         setConfig(config{*configUsername, *configPassword})
+    case "redmine":
+        sprint, err := readSprintYaml("sprint1.yaml")
+        check(err)
+        fmt.Println(sprint)
     default:
         fmt.Println(HelpText)
     }
@@ -76,4 +83,27 @@ func main() {
 
 func setConfig(conf config) {
     fmt.Println(conf)
+}
+
+type Sprint struct {
+    SprintName string `yaml:"name"`
+    Tasks []Task `yaml:"tasks"`
+}
+
+type Task struct {
+    Name string `yaml:"name"`
+    Description string `yaml:"description"`
+    Subtasks []Task `yaml:"subtasks"`
+    Time float32 `yaml:"time"`
+}
+
+func readSprintYaml(yamlPath string) (Sprint, error) {
+    yfile, err := ioutil.ReadFile(yamlPath)
+    if err != nil { return Sprint{}, err }
+
+    var sprint Sprint
+    err = yaml.Unmarshal(yfile, &sprint)
+    check(err)
+
+    return sprint, nil
 }
