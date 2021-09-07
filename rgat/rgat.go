@@ -38,6 +38,22 @@ Options
   --help
     Show help text`
 
+const RedmineHelpText = `Name
+  rgat redmine - Redmine actions
+
+Synopsis
+  rgat redmine [-read-yaml <path to yaml file>] [-help]
+
+Description
+  Redmine actions
+
+Options
+  --read-yaml <path to yaml file>
+    Read a sprint info from a YAML file and print on the screen
+
+  --help
+    Show help text`
+
 func check(err error) {
     if err != nil {
         log.Fatal(err)
@@ -59,6 +75,9 @@ func main() {
     configPassword := configCmd.String("passowrd", "", "Password")
     configHelp := configCmd.Bool("help", false, "Help")
 
+    redmineCmd := flag.NewFlagSet("redmine", flag.ExitOnError)
+    redmineHelp := redmineCmd.Bool("help", false, "Help")
+
     switch os.Args[1] {
 
     case "help":
@@ -70,9 +89,15 @@ func main() {
         configCmd.Parse(os.Args[2:])
         if *configHelp {
             fmt.Println(ConfigHelpText)
+            return
         }
         setConfig(config{*configUsername, *configPassword})
     case "redmine":
+        redmineCmd.Parse(os.Args[2:])
+        if *redmineHelp {
+            fmt.Println(RedmineHelpText)
+            return
+        }
         sprint, err := readSprintYaml("sprint1.yaml")
         check(err)
         fmt.Println(sprint)
