@@ -115,15 +115,15 @@ func setConfig(conf config) {
 }
 
 type Sprint struct {
-    SprintName string `yaml:"name"`
-    Tasks []Task `yaml:"tasks"`
+    SprintName string `yaml:"sprint"`
+    Tasks []Issue `yaml:"issues"`
 }
 
-type Task struct {
-    Name string `yaml:"name"`
+type Issue struct {
+    Subject string `yaml:"subject"`
     Description string `yaml:"description"`
-    Subtasks []Task `yaml:"subtasks"`
-    Time float32 `yaml:"time"`
+    Subissues []Issue `yaml:"subissues"`
+    EstimatedHours float32 `yaml:"estimated-hours"`
 }
 
 func readSprintYaml(yamlPath string) (Sprint, error) {
