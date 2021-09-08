@@ -111,6 +111,7 @@ func main() {
             check(err)
 
             createSprintIssues(sprint, config)
+            return
         }
     default:
         fmt.Println(HelpText)
@@ -129,6 +130,9 @@ type Config struct {
 
 type Sprint struct {
     SprintNum string `yaml:"sprint"`
+    IssuesPrefix string `yaml:"issues-prefix"`
+    StartDate string `yaml:"start-date"`
+    DueDate string `yaml:"due-date"`
     Issues []Issue `yaml:"issues"`
 }
 
@@ -137,13 +141,16 @@ type Issue struct {
     Description string `yaml:"description"`
     Subissues []Issue `yaml:"subissues"`
     EstimatedHours float32 `yaml:"estimated-hours"`
+    StartDate string
+    DueDate string
 }
 
 var yamlToJsonNames = map[string]string{
     "Subject": "subject",
     "Description": "description",
-    "EstimatedHours": "estimated-hours",
-    "Subissues": "sub-issues",
+    "EstimatedHours": "estimated_hours",
+    "StartDate": "start_date",
+    "DueDate": "due_date",
 }
 
 func readConfigYaml(yamlPath string) (Config, error) {
@@ -173,7 +180,10 @@ func createSprintIssues(sprint Sprint, config Config) {
 
     fmt.Println(sprint.Issues)
     for i := 0; i < len(sprint.Issues); i++ {
-        issueBytes, err := makeIssueJsonBytes(&sprint.Issues[i])
+        issue := sprint.Issues[i]
+        issue.StartDate = sprint.StartDate
+        issue.DueDate = sprint.DueDate
+        issueBytes, err := makeIssueJsonBytes(&issue)
         check(err)
 
         client := http.Client{}
@@ -215,7 +225,6 @@ func makeIssueJsonBytes(issue *Issue) ([]byte, error) {
     if err != nil {
         return nil, err
     }
-    ioutil.WriteFile("sprint.json", issueJsonBytes, os.ModePerm)
 
     return issueJsonBytes, nil
 }
