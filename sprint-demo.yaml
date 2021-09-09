@@ -1,5 +1,6 @@
 ---
 sprint: 1
+issues-prefix: Gr-S01-T
 start-date: 2021-09-07
 due-date: 2021-09-11
 issues:
@@ -14,3 +15,29 @@ issues:
   - subject: Second task
     description: Second task description
     estimated-hours: 4.5
+
+  - subject: Third task
+
+  - subject: another task
+
+  - subject: another task
+
+  - subject: another task
+
+  - subject: another task
+
+  - subject: another task
+
+  - subject: another task
+
+  - subject: another task
+
+  - subject: another task
+
+  - subject: another task
+
+  - subject: another task
+
+  - subject: another task
+
+  - subject: another task

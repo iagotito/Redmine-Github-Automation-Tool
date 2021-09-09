@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -83,6 +84,7 @@ func main() {
     redmineHelp := redmineCmd.Bool("help", false, "Help")
     redmineReadYaml := redmineCmd.String("read-yaml", "", "Read sprint YAML file")
     redmineConfigFile := redmineCmd.String("config-file", "", "Path to config YAML file")
+    redmineGet := redmineCmd.String("get", "", "Test get issues")
 
     switch os.Args[1] {
 
@@ -113,6 +115,15 @@ func main() {
             createSprintIssues(sprint, config)
             return
         }
+        if *redmineGet != "" {
+            config, err := readConfigYaml(*redmineConfigFile)
+            check(err)
+            issuesNames := getIssuesNamesByPrefix(*redmineGet, config.ProjectUrl)
+            for _, issue := range issuesNames {
+                fmt.Println(issue)
+            }
+            return
+        }
     default:
         fmt.Println(HelpText)
     }
@@ -141,6 +152,7 @@ type Issue struct {
     Description string `yaml:"description"`
     Subissues []Issue `yaml:"subissues"`
     EstimatedHours float32 `yaml:"estimated-hours"`
+    // these fields comes from the sprint struct
     StartDate string
     DueDate string
 }
@@ -178,15 +190,14 @@ func readSprintYaml(yamlPath string) (Sprint, error) {
 func createSprintIssues(sprint Sprint, config Config) {
     //sprintNum := sprint.SprintNum
 
-    fmt.Println(sprint.Issues)
-    for i := 0; i < len(sprint.Issues); i++ {
+    registeredIssues := getIssuesNamesByPrefix(sprint.IssuesPrefix, config.ProjectUrl)
+    for i := len(registeredIssues); i < len(sprint.Issues); i++ {
         issue := sprint.Issues[i]
         issue.StartDate = sprint.StartDate
         issue.DueDate = sprint.DueDate
+        issue.Subject = fmt.Sprintf("%v%d: %v", sprint.IssuesPrefix, i+1, issue.Subject)
         issueBytes, err := makeIssueJsonBytes(&issue)
         check(err)
-
-        client := http.Client{}
 
         body := bytes.NewReader(issueBytes)
         url := fmt.Sprintf("%v/issues.json", config.ProjectUrl)
@@ -194,17 +205,21 @@ func createSprintIssues(sprint Sprint, config Config) {
         check(err)
 
         req.Header.Add("Content-Type", "application/json")
+        // TODO: test this header to set author's id when using a admin account
+        // see: https://www.redmine.org/projects/redmine/wiki/Rest_api#User-Impersonation
+        //req.Header.Add("X-Redmine-Switch-User", config.Username)
         req.SetBasicAuth(config.Username, config.Password)
 
+        client := http.Client{}
         res, err := client.Do(req)
         check(err)
         defer res.Body.Close()
 
-        resBody, err := io.ReadAll(res.Body)
-        check(err)
+        if res.StatusCode != 201 {
+            check(errors.New(fmt.Sprintf("Status code %d during creation of: \"%s\"", res.StatusCode, issue.Subject)))
+        }
 
-        fmt.Printf("Status: %d\n", res.StatusCode)
-        fmt.Printf("Body: %s\n", string(resBody))
+        fmt.Printf("Created issue: \"%v\"\n", issue.Subject)
     }
 }
 
@@ -227,4 +242,28 @@ func makeIssueJsonBytes(issue *Issue) ([]byte, error) {
     }
 
     return issueJsonBytes, nil
+}
+
+func getIssuesNamesByPrefix(issuesPrefix string, projectUrl string) []string {
+    res, err := http.Get(fmt.Sprintf(
+        "%v/issues.json?subject=~%v&limit=99",
+        projectUrl,
+        issuesPrefix,
+    ))
+    check(err)
+
+    defer res.Body.Close()
+    resBody, err := io.ReadAll(res.Body)
+    check(err)
+
+    var data map[string]interface {}
+    err = json.Unmarshal(resBody, &data)
+    check(err)
+
+    issues := data["issues"].([]interface{})
+    issuesNames := make([]string, len(issues))
+    for i := 0; i < len(issues); i++ {
+        issuesNames[i] = issues[i].(map[string]interface{})["subject"].(string)
+    }
+    return issuesNames
 }
