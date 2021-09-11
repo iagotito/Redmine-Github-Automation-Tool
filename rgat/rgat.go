@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"reflect"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -118,7 +119,7 @@ func main() {
         if *redmineGet != "" {
             config, err := readConfigYaml(*redmineConfigFile)
             check(err)
-            issuesNames := getIssuesNamesByPrefix(*redmineGet, config.ProjectUrl)
+            issuesNames := getIssuesSubjectsByPrefix(*redmineGet, config.ProjectUrl)
             for _, issue := range issuesNames {
                 fmt.Println(issue)
             }
@@ -155,6 +156,8 @@ type Issue struct {
     // these fields comes from the sprint struct
     StartDate string
     DueDate string
+    // these fields comes from the response after the issue creation
+    Id int
 }
 
 var yamlToJsonNames = map[string]string{
@@ -187,21 +190,56 @@ func readSprintYaml(yamlPath string) (Sprint, error) {
     return sprint, nil
 }
 
-func createSprintIssues(sprint Sprint, config Config) {
-    //sprintNum := sprint.SprintNum
+func trimSubjectsPrefix (names []string) []string {
+    trimedNames := make([]string, len(names))
+    for i := 0; i < len(names); i++ {
+        trimedNames[i] = names[i][strings.IndexByte(names[i], ' ')+1:]
+    }
+    return trimedNames
+}
 
-    registeredIssues := getIssuesNamesByPrefix(sprint.IssuesPrefix, config.ProjectUrl)
-    for i := len(registeredIssues); i < len(sprint.Issues); i++ {
-        issue := sprint.Issues[i]
+func contains(a []string, s string) bool {
+    for _, e := range a {
+        if e == s {
+            return true
+        }
+    }
+    return false
+}
+
+func checkDuplicateIssuesSubjects(issues []Issue) {
+    for i := 0; i < len(issues)-1; i++ {
+        for j := i+1; j < len(issues); j++ {
+            if issues[i].Subject == issues[j].Subject {
+                check(errors.New(fmt.Sprintf("Duplicate issues subjects: %v", issues[i].Subject)))
+            }
+        }
+
+    }
+}
+
+func createSprintIssues(sprint Sprint, config Config) {
+    checkDuplicateIssuesSubjects(sprint.Issues)
+
+    registeredSubjects := getIssuesSubjectsByPrefix(sprint.IssuesPrefix, config.ProjectUrl)
+    registeredSubjectsWithoutPrefix := trimSubjectsPrefix(registeredSubjects)
+
+    totalRegisteredIssues := len(registeredSubjects)
+
+    for _, issue := range sprint.Issues {
+        if contains(registeredSubjectsWithoutPrefix, issue.Subject) {
+            continue
+        }
         issue.StartDate = sprint.StartDate
         issue.DueDate = sprint.DueDate
-        issue.Subject = fmt.Sprintf("%v%d: %v", sprint.IssuesPrefix, i+1, issue.Subject)
+        totalRegisteredIssues++
+        issue.Subject = fmt.Sprintf("%v%d: %v", sprint.IssuesPrefix, totalRegisteredIssues, issue.Subject)
         issueBytes, err := makeIssueJsonBytes(&issue)
         check(err)
 
-        body := bytes.NewReader(issueBytes)
+        reqBody := bytes.NewReader(issueBytes)
         url := fmt.Sprintf("%v/issues.json", config.ProjectUrl)
-        req, err := http.NewRequest("POST", url, body)
+        req, err := http.NewRequest("POST", url, reqBody)
         check(err)
 
         req.Header.Add("Content-Type", "application/json")
@@ -213,13 +251,21 @@ func createSprintIssues(sprint Sprint, config Config) {
         client := http.Client{}
         res, err := client.Do(req)
         check(err)
-        defer res.Body.Close()
-
         if res.StatusCode != 201 {
             check(errors.New(fmt.Sprintf("Status code %d during creation of: \"%s\"", res.StatusCode, issue.Subject)))
         }
 
-        fmt.Printf("Created issue: \"%v\"\n", issue.Subject)
+        defer res.Body.Close()
+        resBody, err := ioutil.ReadAll(res.Body)
+        check(err)
+
+        var data map[string]map[string]interface {}
+        err = json.Unmarshal(resBody, &data)
+        check(err)
+
+        issue.Id = int(data["issue"]["id"].(float64))
+
+        fmt.Printf("Issue %d created: \"%v\"\n", issue.Id, issue.Subject)
     }
 }
 
@@ -244,7 +290,7 @@ func makeIssueJsonBytes(issue *Issue) ([]byte, error) {
     return issueJsonBytes, nil
 }
 
-func getIssuesNamesByPrefix(issuesPrefix string, projectUrl string) []string {
+func getIssuesSubjectsByPrefix(issuesPrefix string, projectUrl string) []string {
     res, err := http.Get(fmt.Sprintf(
         "%v/issues.json?subject=~%v&limit=99",
         projectUrl,
