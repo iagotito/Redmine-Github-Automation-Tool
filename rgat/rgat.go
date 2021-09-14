@@ -163,6 +163,20 @@ type Issue struct {
     ParentId int
 }
 
+func isNil(value *interface{}) bool {
+    switch v := (*value).(type) {
+    case int:
+        return *value == 0
+    case float32:
+        return *value == 0
+    case string:
+        return *value == ""
+    default:
+        log.Printf("Unexpected type on isNil: %v", reflect.TypeOf(v))
+        return true
+    }
+}
+
 func (issue *Issue) toJson() ([]byte, error) {
     issueJson := make(map[string]map[string]interface {})
     issueMap := make(map[string]interface {})
@@ -172,6 +186,9 @@ func (issue *Issue) toJson() ([]byte, error) {
     for i := 0; i < s.NumField(); i++ {
         fieldName := yamlToJsonNames[s.Type().Field(i).Name]
         fieldValue := s.Field(i).Interface()
+        if fieldName == "" || isNil(&fieldValue) {
+            continue
+        }
         issueMap[fieldName] = fieldValue
     }
 
