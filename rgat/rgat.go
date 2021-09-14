@@ -158,6 +158,34 @@ type Issue struct {
     DueDate string
     // these fields comes from the response after the issue creation
     Id int
+    ParentId int
+}
+
+func (issue *Issue) toJson() ([]byte, error) {
+    issueJson := make(map[string]map[string]interface {})
+    issueMap := make(map[string]interface {})
+    issueJson["issue"] = issueMap
+
+    s := reflect.ValueOf(issue).Elem()
+    for i := 0; i < s.NumField(); i++ {
+        fieldName := yamlToJsonNames[s.Type().Field(i).Name]
+        fieldValue := s.Field(i).Interface()
+        issueMap[fieldName] = fieldValue
+    }
+
+    issueJsonBytes, err := json.Marshal(issueJson)
+    if err != nil {
+        return nil, err
+    }
+
+    return issueJsonBytes, nil
+}
+
+func (issue *Issue) unpackSubissues() []Issue {
+    for _, subissue := range issue.Subissues {
+        subissue.ParentId = issue.Id
+    }
+    return issue.Subissues
 }
 
 var yamlToJsonNames = map[string]string{
@@ -166,6 +194,9 @@ var yamlToJsonNames = map[string]string{
     "EstimatedHours": "estimated_hours",
     "StartDate": "start_date",
     "DueDate": "due_date",
+    // TODO: test this with an updated redmine version (not working with demo)
+    // see: https://www.redmine.org/issues/18834
+    "ParentId": "parent_issue_id",
 }
 
 func readConfigYaml(yamlPath string) (Config, error) {
@@ -214,7 +245,6 @@ func checkDuplicateIssuesSubjects(issues []Issue) {
                 check(errors.New(fmt.Sprintf("Duplicate issues subjects: %v", issues[i].Subject)))
             }
         }
-
     }
 }
 
@@ -233,61 +263,57 @@ func createSprintIssues(sprint Sprint, config Config) {
         issue.StartDate = sprint.StartDate
         issue.DueDate = sprint.DueDate
         totalRegisteredIssues++
+        // TODO: transform it into an issue method: issue.addPrefix(prefix, num )
         issue.Subject = fmt.Sprintf("%v%d: %v", sprint.IssuesPrefix, totalRegisteredIssues, issue.Subject)
-        issueBytes, err := makeIssueJsonBytes(&issue)
-        check(err)
 
-        reqBody := bytes.NewReader(issueBytes)
-        url := fmt.Sprintf("%v/issues.json", config.ProjectUrl)
-        req, err := http.NewRequest("POST", url, reqBody)
-        check(err)
+        postIssue(&issue, config)
 
-        req.Header.Add("Content-Type", "application/json")
-        // TODO: test this header to set author's id when using a admin account
-        // see: https://www.redmine.org/projects/redmine/wiki/Rest_api#User-Impersonation
-        //req.Header.Add("X-Redmine-Switch-User", config.Username)
-        req.SetBasicAuth(config.Username, config.Password)
-
-        client := http.Client{}
-        res, err := client.Do(req)
-        check(err)
-        if res.StatusCode != 201 {
-            check(errors.New(fmt.Sprintf("Status code %d during creation of: \"%s\"", res.StatusCode, issue.Subject)))
+        if issue.Subissues != nil {
+            subissues := issue.unpackSubissues()
+            for _, subissue := range subissues {
+                totalRegisteredIssues++
+                subissue.Subject = fmt.Sprintf("%v%d: %v", sprint.IssuesPrefix, totalRegisteredIssues, subissue.Subject)
+                subissue.ParentId = issue.Id
+                postIssue(&subissue, config)
+            }
         }
-
-        defer res.Body.Close()
-        resBody, err := ioutil.ReadAll(res.Body)
-        check(err)
-
-        var data map[string]map[string]interface {}
-        err = json.Unmarshal(resBody, &data)
-        check(err)
-
-        issue.Id = int(data["issue"]["id"].(float64))
-
-        fmt.Printf("Issue %d created: \"%v\"\n", issue.Id, issue.Subject)
     }
 }
 
-// TODO: transform it into a Issue "method"
-func makeIssueJsonBytes(issue *Issue) ([]byte, error) {
-    issueJson := make(map[string]map[string]interface {})
-    issueMap := make(map[string]interface {})
-    issueJson["issue"] = issueMap
+// TODO: this sould be an Issue method?
+func postIssue(issue *Issue, config Config) {
+    jsonIssue, err := issue.toJson()
+    check(err)
 
-    s := reflect.ValueOf(issue).Elem()
-    for i := 0; i < s.NumField(); i++ {
-        fieldName := yamlToJsonNames[s.Type().Field(i).Name]
-        fieldValue := s.Field(i).Interface()
-        issueMap[fieldName] = fieldValue
+    reqBody := bytes.NewReader(jsonIssue)
+    url := fmt.Sprintf("%v/issues.json", config.ProjectUrl)
+    req, err := http.NewRequest("POST", url, reqBody)
+    check(err)
+
+    req.Header.Add("Content-Type", "application/json")
+    // TODO: test this header to set author's id when using a admin account
+    // see: https://www.redmine.org/projects/redmine/wiki/Rest_api#User-Impersonation
+    //req.Header.Add("X-Redmine-Switch-User", config.Username)
+    req.SetBasicAuth(config.Username, config.Password)
+
+    client := http.Client{}
+    res, err := client.Do(req)
+    check(err)
+    if res.StatusCode != 201 {
+        check(errors.New(fmt.Sprintf("Status code %d during creation of: \"%s\"", res.StatusCode, issue.Subject)))
     }
 
-    issueJsonBytes, err := json.Marshal(issueJson)
-    if err != nil {
-        return nil, err
-    }
+    defer res.Body.Close()
+    resBody, err := ioutil.ReadAll(res.Body)
+    check(err)
 
-    return issueJsonBytes, nil
+    var data map[string]map[string]interface {}
+    err = json.Unmarshal(resBody, &data)
+    check(err)
+
+    issue.Id = int(data["issue"]["id"].(float64))
+
+    fmt.Printf("Issue %d created: \"%v\"\n", issue.Id, issue.Subject)
 }
 
 func getIssuesSubjectsByPrefix(issuesPrefix string, projectUrl string) []string {
