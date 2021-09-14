@@ -200,13 +200,6 @@ func (issue *Issue) toJson() ([]byte, error) {
     return issueJsonBytes, nil
 }
 
-func (issue *Issue) unpackSubissues() []Issue {
-    for _, subissue := range issue.Subissues {
-        subissue.ParentId = issue.Id
-    }
-    return issue.Subissues
-}
-
 func (issue *Issue) buildSuffix(sprint *Sprint, parentIssue *Issue) string {
     p := fmt.Sprintf("%v%d", sprint.IssuesPrefix, parentIssue.Num)
     suffix := strings.Replace(issue.Suffix, "%p", p, -1)
@@ -297,12 +290,12 @@ func createSprintIssues(sprint Sprint, config Config) {
         postIssue(&issue, config)
 
         if issue.Subissues != nil {
-            subissues := issue.unpackSubissues()
-            for _, subissue := range subissues {
+            for _, subissue := range issue.Subissues {
                 totalRegisteredIssues++
                 subissue.Suffix = subissue.buildSuffix(&sprint, &issue)
                 subissue.Subject = fmt.Sprintf("%v%d: %v %v", sprint.IssuesPrefix, totalRegisteredIssues, subissue.Subject, subissue.Suffix)
                 subissue.ParentId = issue.Id
+                subissue.DueDate = issue.DueDate
                 postIssue(&subissue, config)
             }
         }
