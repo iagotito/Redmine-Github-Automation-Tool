@@ -153,6 +153,7 @@ type Issue struct {
     Description string `yaml:"description"`
     Subissues []Issue `yaml:"subissues"`
     EstimatedHours float32 `yaml:"estimated-hours"`
+    TrackerId int `yaml:"tracker_id"`
     Suffix string `yaml:"suffix"`
     // these fields comes from the sprint struct
     StartDate string
@@ -202,6 +203,7 @@ var yamlToJsonNames = map[string]string{
     "EstimatedHours": "estimated_hours",
     "StartDate": "start_date",
     "DueDate": "due_date",
+    "TrackerId": "tracker_id",
     // TODO: test this with an updated redmine version (not working with demo)
     // see: https://www.redmine.org/issues/18834
     "ParentId": "parent_issue_id",

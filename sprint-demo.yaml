@@ -6,24 +6,32 @@ due-date: 2021-09-30
 issues:
   - subject: First task
     description: First task description
+    tracker_id: 2
     subissues:
       - subject: review
         estimated-hours: 4
         suffix: task %p
+        tracker_id: 2
       - subject: test
         estimated-hours: 1
         suffix: task %p
+        tracker_id: 2
 
   - subject: between 1 and 2
+    tracker_id: 2
 
   - subject: Second task
     description: Second task description
     estimated-hours: 4.5
+    tracker_id: 2
     subissues:
       - subject: review
         estimated-hours: 4
         suffix: task %p
+        tracker_id: 2
 
   - subject: Third task
+    tracker_id: 2
 
   - subject: another task
+    tracker_id: 2
