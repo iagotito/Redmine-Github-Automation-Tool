@@ -153,10 +153,12 @@ type Issue struct {
     Description string `yaml:"description"`
     Subissues []Issue `yaml:"subissues"`
     EstimatedHours float32 `yaml:"estimated-hours"`
+    Suffix string `yaml:"suffix"`
     // these fields comes from the sprint struct
     StartDate string
     DueDate string
     // these fields comes from the response after the issue creation
+    Num int
     Id int
     ParentId int
 }
@@ -186,6 +188,12 @@ func (issue *Issue) unpackSubissues() []Issue {
         subissue.ParentId = issue.Id
     }
     return issue.Subissues
+}
+
+func (issue *Issue) buildSuffix(sprint *Sprint, parentIssue *Issue) string {
+    p := fmt.Sprintf("%v%d", sprint.IssuesPrefix, parentIssue.Num)
+    suffix := strings.Replace(issue.Suffix, "%p", p, -1)
+    return suffix
 }
 
 var yamlToJsonNames = map[string]string{
@@ -257,6 +265,7 @@ func createSprintIssues(sprint Sprint, config Config) {
     totalRegisteredIssues := len(registeredSubjects)
 
     for _, issue := range sprint.Issues {
+        // TODO: check subissues to create new ones if not exists
         if contains(registeredSubjectsWithoutPrefix, issue.Subject) {
             continue
         }
@@ -264,7 +273,8 @@ func createSprintIssues(sprint Sprint, config Config) {
         issue.DueDate = sprint.DueDate
         totalRegisteredIssues++
         // TODO: transform it into an issue method: issue.addPrefix(prefix, num )
-        issue.Subject = fmt.Sprintf("%v%d: %v", sprint.IssuesPrefix, totalRegisteredIssues, issue.Subject)
+        issue.Num = totalRegisteredIssues
+        issue.Subject = fmt.Sprintf("%v%d: %v", sprint.IssuesPrefix, issue.Num, issue.Subject)
 
         postIssue(&issue, config)
 
@@ -272,7 +282,8 @@ func createSprintIssues(sprint Sprint, config Config) {
             subissues := issue.unpackSubissues()
             for _, subissue := range subissues {
                 totalRegisteredIssues++
-                subissue.Subject = fmt.Sprintf("%v%d: %v", sprint.IssuesPrefix, totalRegisteredIssues, subissue.Subject)
+                subissue.Suffix = subissue.buildSuffix(&sprint, &issue)
+                subissue.Subject = fmt.Sprintf("%v%d: %v %v", sprint.IssuesPrefix, totalRegisteredIssues, subissue.Subject, subissue.Suffix)
                 subissue.ParentId = issue.Id
                 postIssue(&subissue, config)
             }

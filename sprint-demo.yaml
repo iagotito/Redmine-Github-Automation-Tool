@@ -7,16 +7,22 @@ issues:
   - subject: First task
     description: First task description
     subissues:
-      - subject: subtask1
+      - subject: review
         estimated-hours: 4
-      - subject: subtask2
+        suffix: task %p
+      - subject: test
         estimated-hours: 1
+        suffix: task %p
 
   - subject: between 1 and 2
 
   - subject: Second task
     description: Second task description
     estimated-hours: 4.5
+    subissues:
+      - subject: review
+        estimated-hours: 4
+        suffix: task %p
 
   - subject: Third task
 
