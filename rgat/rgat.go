@@ -6,7 +6,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -119,7 +118,7 @@ func main() {
         if *redmineGet != "" {
             config, err := readConfigYaml(*redmineConfigFile)
             check(err)
-            issuesNames := getIssuesSubjectsByPrefix(*redmineGet, config.ProjectUrl)
+            issuesNames := getIssuesSubjectsByPrefix(*redmineGet, config.ProjectUrl, &config)
             for _, issue := range issuesNames {
                 fmt.Println(issue)
             }
@@ -261,7 +260,7 @@ func checkDuplicateIssuesSubjects(issues []Issue) {
 func createSprintIssues(sprint Sprint, config Config) {
     checkDuplicateIssuesSubjects(sprint.Issues)
 
-    registeredSubjects := getIssuesSubjectsByPrefix(sprint.IssuesPrefix, config.ProjectUrl)
+    registeredSubjects := getIssuesSubjectsByPrefix(sprint.IssuesPrefix, config.ProjectUrl, &config)
     registeredSubjectsWithoutPrefix := trimSubjectsPrefix(registeredSubjects)
 
     totalRegisteredIssues := len(registeredSubjects)
@@ -329,16 +328,30 @@ func postIssue(issue *Issue, config Config) {
     fmt.Printf("Issue %d created: \"%v\"\n", issue.Id, issue.Subject)
 }
 
-func getIssuesSubjectsByPrefix(issuesPrefix string, projectUrl string) []string {
-    res, err := http.Get(fmt.Sprintf(
-        "%v/issues.json?subject=~%v&limit=99",
-        projectUrl,
-        issuesPrefix,
-    ))
+func getIssuesSubjectsByPrefix(issuesPrefix string, projectUrl string, config *Config) []string {
+    req, err := http.NewRequest(
+        "GET",
+        fmt.Sprintf(
+            "%v/issues.json?subject=~%v&limit=99",
+            projectUrl,
+            issuesPrefix,
+        ),
+        nil,
+    )
     check(err)
 
+    req.Header.Add("Content-Type", "application/json")
+    req.SetBasicAuth(config.Username, config.Password)
+
+    client := http.Client{}
+    res, err := client.Do(req)
+    check(err)
+    if res.StatusCode != 200 {
+        check(errors.New(fmt.Sprintf("Status code %d during fetch of issues with prefix: \"%v\"", res.StatusCode, issuesPrefix)))
+    }
+
     defer res.Body.Close()
-    resBody, err := io.ReadAll(res.Body)
+    resBody, err := ioutil.ReadAll(res.Body)
     check(err)
 
     var data map[string]interface {}
